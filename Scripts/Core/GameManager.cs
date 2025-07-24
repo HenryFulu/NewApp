@@ -14,6 +14,11 @@ namespace MilitaryRPG.Core
         public SquadManager squadManager;
         public CombatManager combatManager;
         
+        [Header("2D Camera Settings")]
+        public Camera mainCamera;
+        public float cameraSize = 20f;
+        public Vector3 cameraOffset = new Vector3(0, 0, -10);
+        
         private static GameManager _instance;
         public static GameManager Instance
         {
@@ -41,7 +46,10 @@ namespace MilitaryRPG.Core
         
         private void InitializeGame()
         {
-            Debug.Log("軍隊戦略RPGゲーム初期化中...");
+            Debug.Log("2D軍隊戦略RPGゲーム初期化中...");
+            
+            // 2Dカメラ設定
+            SetupCamera();
             
             // マネージャーの初期化
             if (unitManager == null)
@@ -55,6 +63,19 @@ namespace MilitaryRPG.Core
             StartGame();
         }
         
+        private void SetupCamera()
+        {
+            if (mainCamera == null)
+                mainCamera = Camera.main;
+                
+            if (mainCamera != null)
+            {
+                mainCamera.orthographic = true;
+                mainCamera.orthographicSize = cameraSize;
+                mainCamera.transform.position = cameraOffset;
+            }
+        }
+        
         private void StartGame()
         {
             // 100体のユニットを生成
@@ -63,7 +84,7 @@ namespace MilitaryRPG.Core
             // 小隊を編成
             squadManager.OrganizeSquads();
             
-            Debug.Log($"ゲーム開始！{totalUnits}体のユニットを{squadManager.GetSquadCount()}個の小隊に編成しました。");
+            Debug.Log($"2Dゲーム開始！{totalUnits}体のユニットを{squadManager.GetSquadCount()}個の小隊に編成しました。");
         }
         
         private void Update()
@@ -72,6 +93,35 @@ namespace MilitaryRPG.Core
             if (Input.GetKeyDown(KeyCode.Space))
             {
                 combatManager.StartBattle();
+            }
+            
+            // カメラ操作（WASD移動、マウスホイールズーム）
+            HandleCameraControls();
+        }
+        
+        private void HandleCameraControls()
+        {
+            if (mainCamera == null) return;
+            
+            // カメラ移動
+            float moveSpeed = 10f;
+            Vector3 movement = Vector3.zero;
+            
+            if (Input.GetKey(KeyCode.W)) movement.y += moveSpeed * Time.deltaTime;
+            if (Input.GetKey(KeyCode.S)) movement.y -= moveSpeed * Time.deltaTime;
+            if (Input.GetKey(KeyCode.A)) movement.x -= moveSpeed * Time.deltaTime;
+            if (Input.GetKey(KeyCode.D)) movement.x += moveSpeed * Time.deltaTime;
+            
+            mainCamera.transform.Translate(movement);
+            
+            // ズーム
+            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            if (scroll != 0)
+            {
+                mainCamera.orthographicSize = Mathf.Clamp(
+                    mainCamera.orthographicSize - scroll * 5f, 
+                    5f, 50f
+                );
             }
         }
     }

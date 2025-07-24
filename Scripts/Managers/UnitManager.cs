@@ -10,15 +10,21 @@ namespace MilitaryRPG.Core
         public GameObject unitPrefab;
         public Transform unitParent;
         
-        [Header("生成位置設定")]
-        public Vector3 spawnAreaMin = new Vector3(-50, 0, -50);
-        public Vector3 spawnAreaMax = new Vector3(50, 0, 50);
+        [Header("2D生成位置設定")]
+        public Vector2 spawnAreaMin = new Vector2(-50, -50);
+        public Vector2 spawnAreaMax = new Vector2(50, 50);
         
         [Header("職業分布")]
         [Range(0f, 1f)] public float warriorRatio = 0.3f;
         [Range(0f, 1f)] public float archerRatio = 0.3f;
         [Range(0f, 1f)] public float mageRatio = 0.2f;
         [Range(0f, 1f)] public float priestRatio = 0.2f;
+        
+        [Header("2Dスプライト設定")]
+        public Sprite warriorSprite;
+        public Sprite archerSprite;
+        public Sprite mageSprite;
+        public Sprite priestSprite;
         
         private List<Unit> allUnits = new List<Unit>();
         private Dictionary<UnitType, List<Unit>> unitsByType = new Dictionary<UnitType, List<Unit>>();
@@ -39,7 +45,7 @@ namespace MilitaryRPG.Core
         
         public void CreateInitialUnits(int totalCount)
         {
-            Debug.Log($"ユニット生成開始: {totalCount}体");
+            Debug.Log($"2Dユニット生成開始: {totalCount}体");
             
             // 職業ごとの生成数を計算
             int warriorCount = Mathf.RoundToInt(totalCount * warriorRatio);
@@ -55,14 +61,14 @@ namespace MilitaryRPG.Core
             CreateUnitsOfType(UnitType.Mage, mageCount);
             CreateUnitsOfType(UnitType.Priest, priestCount);
             
-            Debug.Log($"ユニット生成完了！総数: {allUnits.Count}体");
+            Debug.Log($"2Dユニット生成完了！総数: {allUnits.Count}体");
         }
         
         private void CreateUnitsOfType(UnitType unitType, int count)
         {
             for (int i = 0; i < count; i++)
             {
-                Vector3 spawnPosition = GetRandomSpawnPosition();
+                Vector2 spawnPosition = GetRandomSpawnPosition();
                 Unit newUnit = CreateUnit(unitType, spawnPosition);
                 
                 if (newUnit != null)
@@ -73,7 +79,7 @@ namespace MilitaryRPG.Core
             }
         }
         
-        private Unit CreateUnit(UnitType unitType, Vector3 position)
+        private Unit CreateUnit(UnitType unitType, Vector2 position)
         {
             GameObject unitObj;
             
@@ -83,8 +89,8 @@ namespace MilitaryRPG.Core
             }
             else
             {
-                // プレハブがない場合は基本的なオブジェクトを生成
-                unitObj = CreateBasicUnitObject(position);
+                // プレハブがない場合は基本的な2Dオブジェクトを生成
+                unitObj = CreateBasic2DUnitObject(position, unitType);
             }
             
             Unit unit = unitObj.GetComponent<Unit>();
@@ -97,17 +103,8 @@ namespace MilitaryRPG.Core
             unit.unitID = nextUnitID++;
             unit.classData = new UnitClassData(unitType);
             
-            // NavMeshAgentを追加
-            if (unitObj.GetComponent<UnityEngine.AI.NavMeshAgent>() == null)
-            {
-                unitObj.AddComponent<UnityEngine.AI.NavMeshAgent>();
-            }
-            
-            // Colliderを追加
-            if (unitObj.GetComponent<Collider>() == null)
-            {
-                unitObj.AddComponent<CapsuleCollider>();
-            }
+            // 2D物理コンポーネントを追加
+            SetupUnit2DComponents(unitObj, unitType);
             
             // ユニット初期化
             unit.InitializeUnit();
@@ -115,23 +112,105 @@ namespace MilitaryRPG.Core
             return unit;
         }
         
-        private GameObject CreateBasicUnitObject(Vector3 position)
+        private GameObject CreateBasic2DUnitObject(Vector2 position, UnitType unitType)
         {
-            GameObject unitObj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            unitObj.transform.position = position;
-            unitObj.transform.localScale = new Vector3(0.8f, 1f, 0.8f);
-            unitObj.name = $"Unit_{nextUnitID:000}";
+            GameObject unitObj = new GameObject($"Unit_{nextUnitID:000}_{unitType}");
+            unitObj.transform.position = new Vector3(position.x, position.y, 0);
+            
+            // SpriteRendererを追加
+            SpriteRenderer spriteRenderer = unitObj.AddComponent<SpriteRenderer>();
+            spriteRenderer.sprite = GetSpriteForUnitType(unitType);
+            spriteRenderer.sortingOrder = 1;
+            
+            // スプライトがない場合はデフォルトの色付き正方形を作成
+            if (spriteRenderer.sprite == null)
+            {
+                spriteRenderer.sprite = CreateDefaultSprite();
+                spriteRenderer.color = GetClassColor(unitType);
+            }
             
             return unitObj;
         }
         
-        private Vector3 GetRandomSpawnPosition()
+        private Sprite GetSpriteForUnitType(UnitType unitType)
+        {
+            switch (unitType)
+            {
+                case UnitType.Warrior:
+                    return warriorSprite;
+                case UnitType.Archer:
+                    return archerSprite;
+                case UnitType.Mage:
+                    return mageSprite;
+                case UnitType.Priest:
+                    return priestSprite;
+                default:
+                    return null;
+            }
+        }
+        
+        private Sprite CreateDefaultSprite()
+        {
+            // 16x16の白いテクスチャを作成
+            Texture2D texture = new Texture2D(16, 16);
+            Color[] pixels = new Color[16 * 16];
+            
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                pixels[i] = Color.white;
+            }
+            
+            texture.SetPixels(pixels);
+            texture.Apply();
+            
+            return Sprite.Create(texture, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f));
+        }
+        
+        private void SetupUnit2DComponents(GameObject unitObj, UnitType unitType)
+        {
+            // Rigidbody2Dを追加
+            if (unitObj.GetComponent<Rigidbody2D>() == null)
+            {
+                Rigidbody2D rb2d = unitObj.AddComponent<Rigidbody2D>();
+                rb2d.gravityScale = 0f;
+                rb2d.freezeRotation = true;
+            }
+            
+            // CircleCollider2Dを追加
+            if (unitObj.GetComponent<Collider2D>() == null)
+            {
+                CircleCollider2D collider = unitObj.AddComponent<CircleCollider2D>();
+                collider.radius = 0.3f;
+                collider.isTrigger = false; // 物理的な衝突を有効にする
+            }
+            
+            // スケールを調整
+            unitObj.transform.localScale = GetScaleForUnitType(unitType);
+        }
+        
+        private Vector3 GetScaleForUnitType(UnitType unitType)
+        {
+            switch (unitType)
+            {
+                case UnitType.Warrior:
+                    return new Vector3(1.2f, 1.2f, 1f); // 戦士は少し大きく
+                case UnitType.Archer:
+                    return new Vector3(0.9f, 0.9f, 1f); // 弓兵は少し小さく
+                case UnitType.Mage:
+                    return new Vector3(0.8f, 0.8f, 1f); // 魔法使いはさらに小さく
+                case UnitType.Priest:
+                    return new Vector3(1f, 1f, 1f);     // 僧侶は標準サイズ
+                default:
+                    return Vector3.one;
+            }
+        }
+        
+        private Vector2 GetRandomSpawnPosition()
         {
             float x = Random.Range(spawnAreaMin.x, spawnAreaMax.x);
-            float z = Random.Range(spawnAreaMin.z, spawnAreaMax.z);
-            float y = spawnAreaMin.y;
+            float y = Random.Range(spawnAreaMin.y, spawnAreaMax.y);
             
-            return new Vector3(x, y, z);
+            return new Vector2(x, y);
         }
         
         // 指定した職業のユニットを取得
@@ -170,7 +249,7 @@ namespace MilitaryRPG.Core
             int totalAlive = 0;
             int totalDead = 0;
             
-            Debug.Log("=== 戦闘統計 ===");
+            Debug.Log("=== 2D戦闘統計 ===");
             
             foreach (UnitType unitType in System.Enum.GetValues(typeof(UnitType)))
             {
@@ -216,21 +295,13 @@ namespace MilitaryRPG.Core
             }
         }
         
-        // 全ユニットを指定位置に集合
-        public void GatherAllUnits(Vector3 position)
+        // 全ユニットを指定位置に集合（2D版）
+        public void GatherAllUnits(Vector2 position)
         {
             foreach (var unit in GetAliveUnits())
             {
-                UnityEngine.AI.NavMeshAgent agent = unit.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                if (agent != null)
-                {
-                    Vector3 randomOffset = new Vector3(
-                        Random.Range(-5f, 5f),
-                        0,
-                        Random.Range(-5f, 5f)
-                    );
-                    agent.SetDestination(position + randomOffset);
-                }
+                Vector2 randomOffset = Random.insideUnitCircle * 5f;
+                unit.SetDestination(position + randomOffset);
             }
             
             Debug.Log($"全ユニットを {position} 付近に集合させました！");
@@ -241,11 +312,11 @@ namespace MilitaryRPG.Core
         {
             foreach (var unit in allUnits)
             {
-                Renderer renderer = unit.GetComponent<Renderer>();
-                if (renderer != null)
+                SpriteRenderer spriteRenderer = unit.GetComponent<SpriteRenderer>();
+                if (spriteRenderer != null)
                 {
                     Color color = GetClassColor(unit.classData.unitType);
-                    renderer.material.color = color;
+                    spriteRenderer.color = color;
                 }
             }
         }
@@ -267,6 +338,32 @@ namespace MilitaryRPG.Core
             }
         }
         
+        // 画面に収まるようにユニットを配置
+        public void RepositionUnitsToScreen()
+        {
+            Camera mainCamera = Camera.main;
+            if (mainCamera == null) return;
+            
+            // カメラの見える範囲を計算
+            float height = mainCamera.orthographicSize * 2f;
+            float width = height * mainCamera.aspect;
+            
+            Vector2 cameraPos = mainCamera.transform.position;
+            Vector2 newSpawnMin = new Vector2(cameraPos.x - width/2 + 2f, cameraPos.y - height/2 + 2f);
+            Vector2 newSpawnMax = new Vector2(cameraPos.x + width/2 - 2f, cameraPos.y + height/2 - 2f);
+            
+            foreach (var unit in GetAliveUnits())
+            {
+                Vector2 newPos = new Vector2(
+                    Random.Range(newSpawnMin.x, newSpawnMax.x),
+                    Random.Range(newSpawnMin.y, newSpawnMax.y)
+                );
+                unit.transform.position = newPos;
+            }
+            
+            Debug.Log("ユニットを画面内に再配置しました。");
+        }
+        
         private void Update()
         {
             // デバッグ用のキー入力
@@ -277,12 +374,17 @@ namespace MilitaryRPG.Core
             
             if (Input.GetKeyDown(KeyCode.G))
             {
-                GatherAllUnits(Vector3.zero);
+                GatherAllUnits(Vector2.zero);
             }
             
             if (Input.GetKeyDown(KeyCode.V))
             {
                 SetUnitColors();
+            }
+            
+            if (Input.GetKeyDown(KeyCode.P))
+            {
+                RepositionUnitsToScreen();
             }
         }
     }

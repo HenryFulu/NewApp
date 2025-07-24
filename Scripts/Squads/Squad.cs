@@ -15,12 +15,12 @@ namespace MilitaryRPG.Squads
         
         [Header("小隊構成")]
         public int maxMembers = 10;
-        public Vector3 formationCenter;
+        public Vector2 formationCenter;
         public SquadFormation formation = SquadFormation.Line;
         
         [Header("戦闘状態")]
         public bool isInCombat = false;
-        public Vector3 targetPosition;
+        public Vector2 targetPosition;
         public Squad enemySquad;
         
         public enum SquadFormation
@@ -121,8 +121,8 @@ namespace MilitaryRPG.Squads
             }
         }
         
-        // 小隊を指定位置に移動
-        public void MoveTo(Vector3 position)
+        // 小隊を指定位置に移動（2D版）
+        public void MoveTo(Vector2 position)
         {
             targetPosition = position;
             formationCenter = position;
@@ -130,30 +130,26 @@ namespace MilitaryRPG.Squads
             ArrangeFormation();
         }
         
-        // フォーメーションを配置
+        // フォーメーションを配置（2D版）
         public void ArrangeFormation()
         {
             if (members.Count == 0) return;
             
-            List<Vector3> positions = CalculateFormationPositions();
+            List<Vector2> positions = CalculateFormationPositions();
             
             for (int i = 0; i < members.Count && i < positions.Count; i++)
             {
                 if (members[i].isAlive)
                 {
-                    NavMeshAgent agent = members[i].GetComponent<NavMeshAgent>();
-                    if (agent != null)
-                    {
-                        agent.SetDestination(positions[i]);
-                    }
+                    members[i].SetDestination(positions[i]);
                 }
             }
         }
         
-        // フォーメーションの位置を計算
-        private List<Vector3> CalculateFormationPositions()
+        // フォーメーションの位置を計算（2D版）
+        private List<Vector2> CalculateFormationPositions()
         {
-            List<Vector3> positions = new List<Vector3>();
+            List<Vector2> positions = new List<Vector2>();
             int aliveCount = GetAliveCount();
             
             switch (formation)
@@ -162,15 +158,15 @@ namespace MilitaryRPG.Squads
                     for (int i = 0; i < aliveCount; i++)
                     {
                         float x = formationCenter.x + (i - aliveCount / 2f) * 2f;
-                        positions.Add(new Vector3(x, formationCenter.y, formationCenter.z));
+                        positions.Add(new Vector2(x, formationCenter.y));
                     }
                     break;
                     
                 case SquadFormation.Column:
                     for (int i = 0; i < aliveCount; i++)
                     {
-                        float z = formationCenter.z + i * 2f;
-                        positions.Add(new Vector3(formationCenter.x, formationCenter.y, z));
+                        float y = formationCenter.y + i * 2f;
+                        positions.Add(new Vector2(formationCenter.x, y));
                     }
                     break;
                     
@@ -181,8 +177,8 @@ namespace MilitaryRPG.Squads
                         int row = i / rows;
                         int col = i % rows;
                         float x = formationCenter.x + (col - rows / 2f) * 2f;
-                        float z = formationCenter.z + row * 2f;
-                        positions.Add(new Vector3(x, formationCenter.y, z));
+                        float y = formationCenter.y + row * 2f;
+                        positions.Add(new Vector2(x, y));
                     }
                     break;
                     
@@ -194,8 +190,8 @@ namespace MilitaryRPG.Squads
                         float offset = (i / 2) * side;
                         
                         float x = formationCenter.x + offset * 1.5f;
-                        float z = formationCenter.z - row * 2f;
-                        positions.Add(new Vector3(x, formationCenter.y, z));
+                        float y = formationCenter.y - row * 2f;
+                        positions.Add(new Vector2(x, y));
                     }
                     break;
                     
@@ -205,8 +201,8 @@ namespace MilitaryRPG.Squads
                     {
                         float angle = (i / (float)aliveCount) * 360f * Mathf.Deg2Rad;
                         float x = formationCenter.x + Mathf.Cos(angle) * radius;
-                        float z = formationCenter.z + Mathf.Sin(angle) * radius;
-                        positions.Add(new Vector3(x, formationCenter.y, z));
+                        float y = formationCenter.y + Mathf.Sin(angle) * radius;
+                        positions.Add(new Vector2(x, y));
                     }
                     break;
             }
@@ -302,6 +298,69 @@ namespace MilitaryRPG.Squads
             int combatPower = GetCombatPower();
             
             Debug.Log($"【小隊状況報告】{squadName}: 生存 {alive}/{total}, 戦闘力 {combatPower}");
+        }
+        
+        // 小隊の中心位置を計算（2D版）
+        public Vector2 CalculateCenter()
+        {
+            if (members.Count == 0) return Vector2.zero;
+            
+            Vector2 center = Vector2.zero;
+            int aliveCount = 0;
+            
+            foreach (var member in members)
+            {
+                if (member.isAlive)
+                {
+                    center += (Vector2)member.transform.position;
+                    aliveCount++;
+                }
+            }
+            
+            if (aliveCount > 0)
+                center /= aliveCount;
+                
+            formationCenter = center;
+            return center;
+        }
+        
+        // 小隊を緊急集合させる（2D版）
+        public void EmergencyRegroup()
+        {
+            Vector2 center = CalculateCenter();
+            
+            foreach (var member in members)
+            {
+                if (member.isAlive)
+                {
+                    Vector2 regroupPosition = center + Random.insideUnitCircle * 3f;
+                    member.SetDestination(regroupPosition);
+                }
+            }
+            
+            Debug.Log($"小隊 {squadName} 緊急集合！");
+        }
+        
+        // 最も近い敵を見つける（2D版）
+        public Unit FindNearestEnemy(List<Unit> enemies)
+        {
+            Vector2 squadCenter = CalculateCenter();
+            Unit nearestEnemy = null;
+            float nearestDistance = float.MaxValue;
+            
+            foreach (var enemy in enemies)
+            {
+                if (!enemy.isAlive) continue;
+                
+                float distance = Vector2.Distance(squadCenter, enemy.transform.position);
+                if (distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    nearestEnemy = enemy;
+                }
+            }
+            
+            return nearestEnemy;
         }
     }
 }

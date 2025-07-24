@@ -11,7 +11,7 @@ namespace MilitaryRPG.Core
         public int maxSquadSize = 10;
         public bool balancedSquads = true; // 職業をバランスよく配置
         
-        [Header("フォーメーション設定")]
+        [Header("2Dフォーメーション設定")]
         public Squad.SquadFormation defaultFormation = Squad.SquadFormation.Line;
         public float squadSpacing = 20f;
         
@@ -51,7 +51,7 @@ namespace MilitaryRPG.Core
             
             PositionSquads();
             
-            Debug.Log($"小隊編成完了！{allSquads.Count}個の小隊を編成しました。");
+            Debug.Log($"2D小隊編成完了！{allSquads.Count}個の小隊を編成しました。");
             
             // 各小隊の状況を報告
             foreach (var squad in allSquads)
@@ -100,7 +100,7 @@ namespace MilitaryRPG.Core
                 }
             }
             
-            Debug.Log($"バランス編成で{squadCount}個の小隊を編成しました。");
+            Debug.Log($"2Dバランス編成で{squadCount}個の小隊を編成しました。");
         }
         
         private void OrganizeSimpleSquads(List<Unit> units)
@@ -123,33 +123,33 @@ namespace MilitaryRPG.Core
                 }
             }
             
-            Debug.Log($"単純編成で{squadCount}個の小隊を編成しました。");
+            Debug.Log($"2D単純編成で{squadCount}個の小隊を編成しました。");
         }
         
         private void PositionSquads()
         {
             for (int i = 0; i < allSquads.Count; i++)
             {
-                // 小隊の配置位置を計算
-                Vector3 squadPosition = CalculateSquadPosition(i);
+                // 小隊の配置位置を計算（2D版）
+                Vector2 squadPosition = CalculateSquadPosition(i);
                 allSquads[i].MoveTo(squadPosition);
                 
                 Debug.Log($"{allSquads[i].squadName} を位置 {squadPosition} に配置");
             }
         }
         
-        private Vector3 CalculateSquadPosition(int squadIndex)
+        private Vector2 CalculateSquadPosition(int squadIndex)
         {
-            // 小隊を格子状に配置
+            // 小隊を格子状に配置（2D版）
             int squadsPerRow = Mathf.CeilToInt(Mathf.Sqrt(allSquads.Count));
             
             int row = squadIndex / squadsPerRow;
             int col = squadIndex % squadsPerRow;
             
             float x = (col - squadsPerRow / 2f) * squadSpacing;
-            float z = row * squadSpacing;
+            float y = row * squadSpacing;
             
-            return new Vector3(x, 0, z);
+            return new Vector2(x, y);
         }
         
         // 小隊数を取得
@@ -169,19 +169,19 @@ namespace MilitaryRPG.Core
             return null;
         }
         
-        // 全小隊を指定位置に移動
-        public void MoveAllSquadsTo(Vector3 targetArea)
+        // 全小隊を指定位置に移動（2D版）
+        public void MoveAllSquadsTo(Vector2 targetArea)
         {
             for (int i = 0; i < allSquads.Count; i++)
             {
-                Vector3 squadTarget = targetArea + CalculateSquadOffset(i);
+                Vector2 squadTarget = targetArea + CalculateSquadOffset(i);
                 allSquads[i].MoveTo(squadTarget);
             }
             
             Debug.Log($"全{allSquads.Count}小隊を{targetArea}方面へ移動開始！");
         }
         
-        private Vector3 CalculateSquadOffset(int squadIndex)
+        private Vector2 CalculateSquadOffset(int squadIndex)
         {
             int squadsPerRow = Mathf.CeilToInt(Mathf.Sqrt(allSquads.Count));
             
@@ -189,9 +189,9 @@ namespace MilitaryRPG.Core
             int col = squadIndex % squadsPerRow;
             
             float x = (col - squadsPerRow / 2f) * squadSpacing * 0.5f;
-            float z = row * squadSpacing * 0.5f;
+            float y = row * squadSpacing * 0.5f;
             
-            return new Vector3(x, 0, z);
+            return new Vector2(x, y);
         }
         
         // 全小隊のフォーメーションを変更
@@ -220,10 +220,10 @@ namespace MilitaryRPG.Core
                     idleSquads++;
             }
             
-            Debug.Log($"戦闘状況 - 交戦中: {combatSquads}小隊, 待機中: {idleSquads}小隊");
+            Debug.Log($"2D戦闘状況 - 交戦中: {combatSquads}小隊, 待機中: {idleSquads}小隊");
         }
         
-        // 最も近い敵小隊を見つける
+        // 最も近い敵小隊を見つける（2D版）
         public Squad FindNearestEnemySquad(Squad friendlySquad, List<Squad> enemySquads)
         {
             if (enemySquads.Count == 0) return null;
@@ -235,7 +235,7 @@ namespace MilitaryRPG.Core
             {
                 if (enemy.GetAliveCount() == 0) continue;
                 
-                float distance = Vector3.Distance(friendlySquad.formationCenter, enemy.formationCenter);
+                float distance = Vector2.Distance(friendlySquad.formationCenter, enemy.formationCenter);
                 if (distance < nearestDistance)
                 {
                     nearestDistance = distance;
@@ -249,7 +249,7 @@ namespace MilitaryRPG.Core
         // 小隊を再編成（戦死者を除外）
         public void ReorganizeSquads()
         {
-            Debug.Log("小隊の再編成を開始...");
+            Debug.Log("2D小隊の再編成を開始...");
             
             // 生存ユニットのみを収集
             List<Unit> survivors = new List<Unit>();
@@ -276,7 +276,7 @@ namespace MilitaryRPG.Core
                 OrganizeSquads();
             }
             
-            Debug.Log($"再編成完了！生存者{survivors.Count}名を{allSquads.Count}個の小隊に再配置しました。");
+            Debug.Log($"2D再編成完了！生存者{survivors.Count}名を{allSquads.Count}個の小隊に再配置しました。");
         }
         
         // 全小隊にスキル使用を指示
@@ -288,6 +288,55 @@ namespace MilitaryRPG.Core
             }
             
             Debug.Log("全小隊にスキル使用を指示しました！");
+        }
+        
+        // 画面内に小隊を配置
+        public void RepositionSquadsToScreen()
+        {
+            Camera mainCamera = Camera.main;
+            if (mainCamera == null) return;
+            
+            // カメラの見える範囲を計算
+            float height = mainCamera.orthographicSize * 2f;
+            float width = height * mainCamera.aspect;
+            
+            Vector2 cameraPos = mainCamera.transform.position;
+            
+            for (int i = 0; i < allSquads.Count; i++)
+            {
+                // 画面内でランダムな位置を計算
+                Vector2 squadPos = new Vector2(
+                    Random.Range(cameraPos.x - width/3, cameraPos.x + width/3),
+                    Random.Range(cameraPos.y - height/3, cameraPos.y + height/3)
+                );
+                
+                allSquads[i].MoveTo(squadPos);
+            }
+            
+            Debug.Log("小隊を画面内に再配置しました。");
+        }
+        
+        // 小隊の散開命令
+        public void OrderSquadsSpread()
+        {
+            Camera mainCamera = Camera.main;
+            if (mainCamera == null) return;
+            
+            float height = mainCamera.orthographicSize * 2f;
+            float width = height * mainCamera.aspect;
+            Vector2 cameraPos = mainCamera.transform.position;
+            
+            for (int i = 0; i < allSquads.Count; i++)
+            {
+                Vector2 spreadPosition = new Vector2(
+                    Random.Range(cameraPos.x - width/2 + 3f, cameraPos.x + width/2 - 3f),
+                    Random.Range(cameraPos.y - height/2 + 3f, cameraPos.y + height/2 - 3f)
+                );
+                
+                allSquads[i].MoveTo(spreadPosition);
+            }
+            
+            Debug.Log("全小隊に散開命令を発令！");
         }
         
         private void Update()
@@ -313,6 +362,11 @@ namespace MilitaryRPG.Core
                 ChangeAllSquadFormation(Squad.SquadFormation.Circle);
             }
             
+            if (Input.GetKeyDown(KeyCode.Alpha5))
+            {
+                ChangeAllSquadFormation(Squad.SquadFormation.Column);
+            }
+            
             if (Input.GetKeyDown(KeyCode.R))
             {
                 ReorganizeSquads();
@@ -327,12 +381,22 @@ namespace MilitaryRPG.Core
             {
                 OrderAllSquadsUseSkills();
             }
+            
+            if (Input.GetKeyDown(KeyCode.O))
+            {
+                RepositionSquadsToScreen();
+            }
+            
+            if (Input.GetKeyDown(KeyCode.I))
+            {
+                OrderSquadsSpread();
+            }
         }
         
         // 全小隊の詳細レポート
         public void GenerateDetailedReport()
         {
-            Debug.Log("=== 詳細小隊レポート ===");
+            Debug.Log("=== 2D詳細小隊レポート ===");
             
             foreach (var squad in allSquads)
             {
@@ -363,6 +427,7 @@ namespace MilitaryRPG.Core
                 }
                 
                 Debug.Log($"  構成: {compositionStr}");
+                Debug.Log($"  中心位置: {squad.formationCenter}");
             }
             
             Debug.Log("========================");

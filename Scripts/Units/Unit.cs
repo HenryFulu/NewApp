@@ -1,10 +1,10 @@
 using UnityEngine;
-using UnityEngine.AI;
 using System.Collections;
 
 namespace MilitaryRPG.Units
 {
-    [RequireComponent(typeof(NavMeshAgent))]
+    [RequireComponent(typeof(Rigidbody2D))]
+    [RequireComponent(typeof(Collider2D))]
     public class Unit : MonoBehaviour
     {
         [Header("ユニット情報")]
@@ -27,9 +27,19 @@ namespace MilitaryRPG.Units
         public int squadID = -1;
         public bool isSquadLeader = false;
         
+        [Header("2D移動設定")]
+        public float moveSpeed = 5f;
+        public float rotationSpeed = 180f;
+        public float arrivalDistance = 0.5f;
+        
         // コンポーネント
-        private NavMeshAgent navAgent;
+        private Rigidbody2D rb2d;
+        private SpriteRenderer spriteRenderer;
         private Animator animator;
+        
+        // 移動関連
+        private Vector2 targetPosition;
+        private bool hasDestination = false;
         
         // AI状態
         public enum UnitState
@@ -46,8 +56,13 @@ namespace MilitaryRPG.Units
         
         private void Awake()
         {
-            navAgent = GetComponent<NavMeshAgent>();
+            rb2d = GetComponent<Rigidbody2D>();
+            spriteRenderer = GetComponent<SpriteRenderer>();
             animator = GetComponent<Animator>();
+            
+            // 2D物理設定
+            rb2d.gravityScale = 0f; // 2Dトップダウンなので重力無効
+            rb2d.freezeRotation = true; // 回転を制御
         }
         
         private void Start()
@@ -62,7 +77,7 @@ namespace MilitaryRPG.Units
                 // ステータスを初期化
                 currentHealth = classData.baseHealth;
                 currentMana = classData.baseMana;
-                navAgent.speed = classData.baseSpeed;
+                moveSpeed = classData.baseSpeed;
                 
                 // ユニット名を設定
                 if (string.IsNullOrEmpty(unitName))
@@ -77,6 +92,7 @@ namespace MilitaryRPG.Units
             if (!isAlive) return;
             
             UpdateAI();
+            UpdateMovement();
             UpdateAnimations();
         }
         
@@ -89,9 +105,11 @@ namespace MilitaryRPG.Units
                     break;
                     
                 case UnitState.Moving:
-                    if (navAgent.remainingDistance < 0.5f)
+                    if (!hasDestination || Vector2.Distance(transform.position, targetPosition) < arrivalDistance)
                     {
                         currentState = UnitState.Idle;
+                        hasDestination = false;
+                        rb2d.velocity = Vector2.zero;
                     }
                     break;
                     
@@ -108,10 +126,35 @@ namespace MilitaryRPG.Units
             }
         }
         
+        private void UpdateMovement()
+        {
+            if (currentState == UnitState.Moving && hasDestination)
+            {
+                Vector2 direction = (targetPosition - (Vector2)transform.position).normalized;
+                rb2d.velocity = direction * moveSpeed;
+                
+                // 向きを調整
+                if (direction != Vector2.zero)
+                {
+                    float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+                    transform.rotation = Quaternion.Lerp(transform.rotation, 
+                        Quaternion.AngleAxis(angle - 90f, Vector3.forward), 
+                        rotationSpeed * Time.deltaTime);
+                }
+            }
+        }
+        
+        public void SetDestination(Vector2 destination)
+        {
+            targetPosition = destination;
+            hasDestination = true;
+            currentState = UnitState.Moving;
+        }
+        
         private void FindTarget()
         {
-            // 敵を探す（簡単な実装）
-            Collider[] enemies = Physics.OverlapSphere(transform.position, classData.attackRange * 2);
+            // 敵を探す（2D版）
+            Collider2D[] enemies = Physics2D.OverlapCircleAll(transform.position, classData.attackRange * 2);
             
             foreach (var enemy in enemies)
             {
@@ -129,16 +172,16 @@ namespace MilitaryRPG.Units
         {
             if (target != null)
             {
-                float distance = Vector3.Distance(transform.position, target.position);
+                float distance = Vector2.Distance(transform.position, target.position);
                 
                 if (distance <= classData.attackRange)
                 {
                     currentState = UnitState.Attacking;
+                    rb2d.velocity = Vector2.zero;
                 }
                 else
                 {
-                    navAgent.SetDestination(target.position);
-                    currentState = UnitState.Moving;
+                    SetDestination(target.position);
                 }
             }
         }
@@ -148,7 +191,7 @@ namespace MilitaryRPG.Units
             if (Time.time - lastAttackTime >= attackCooldown)
             {
                 // 攻撃範囲チェック
-                float distance = Vector3.Distance(transform.position, target.position);
+                float distance = Vector2.Distance(transform.position, target.position);
                 
                 if (distance <= classData.attackRange)
                 {
@@ -199,9 +242,23 @@ namespace MilitaryRPG.Units
             
             currentHealth -= damage;
             
+            // ダメージエフェクト（色の点滅）
+            StartCoroutine(DamageFlash());
+            
             if (currentHealth <= 0)
             {
                 Die();
+            }
+        }
+        
+        private IEnumerator DamageFlash()
+        {
+            if (spriteRenderer != null)
+            {
+                Color originalColor = spriteRenderer.color;
+                spriteRenderer.color = Color.red;
+                yield return new WaitForSeconds(0.1f);
+                spriteRenderer.color = originalColor;
             }
         }
         
@@ -209,11 +266,19 @@ namespace MilitaryRPG.Units
         {
             isAlive = false;
             currentState = UnitState.Dead;
-            navAgent.enabled = false;
+            rb2d.velocity = Vector2.zero;
             
             // 死亡エフェクト
             if (animator != null)
                 animator.SetTrigger("Die");
+            
+            // 透明度を下げる
+            if (spriteRenderer != null)
+            {
+                Color color = spriteRenderer.color;
+                color.a = 0.3f;
+                spriteRenderer.color = color;
+            }
                 
             Debug.Log($"{unitName} が戦死しました...");
             
@@ -229,14 +294,73 @@ namespace MilitaryRPG.Units
         
         private void CreateProjectile(Unit targetUnit)
         {
-            // 矢や投射物のエフェクト（簡単な実装）
+            // 矢や投射物のエフェクト（2D版）
             Debug.Log($"{unitName} が矢を放ちました！");
+            
+            // 簡単な弾道エフェクト
+            StartCoroutine(ProjectileEffect(targetUnit.transform.position));
+        }
+        
+        private IEnumerator ProjectileEffect(Vector2 targetPos)
+        {
+            // 簡単な線描画でプロジェクタイルを表現
+            LineRenderer line = GetComponent<LineRenderer>();
+            if (line == null)
+            {
+                line = gameObject.AddComponent<LineRenderer>();
+                line.material = new Material(Shader.Find("Sprites/Default"));
+                line.color = Color.yellow;
+                line.startWidth = 0.1f;
+                line.endWidth = 0.1f;
+                line.sortingOrder = 1;
+            }
+            
+            line.positionCount = 2;
+            line.SetPosition(0, transform.position);
+            line.SetPosition(1, targetPos);
+            
+            yield return new WaitForSeconds(0.1f);
+            
+            line.positionCount = 0;
         }
         
         private void CreateMagicEffect(Unit targetUnit)
         {
-            // 魔法エフェクト（簡単な実装）
+            // 魔法エフェクト（2D版）
             Debug.Log($"{unitName} が魔法を唱えました！");
+            
+            // 簡単なパーティクルエフェクト
+            StartCoroutine(MagicEffect());
+        }
+        
+        private IEnumerator MagicEffect()
+        {
+            // 魔法エフェクト用の一時的なオブジェクト作成
+            GameObject effect = new GameObject("MagicEffect");
+            effect.transform.position = transform.position;
+            
+            SpriteRenderer effectRenderer = effect.AddComponent<SpriteRenderer>();
+            effectRenderer.color = new Color(0, 0, 1, 0.5f);
+            effectRenderer.sortingOrder = 2;
+            
+            // 拡大エフェクト
+            float timer = 0f;
+            float duration = 0.5f;
+            
+            while (timer < duration)
+            {
+                timer += Time.deltaTime;
+                float scale = Mathf.Lerp(0, 2f, timer / duration);
+                effect.transform.localScale = Vector3.one * scale;
+                
+                Color color = effectRenderer.color;
+                color.a = Mathf.Lerp(0.5f, 0f, timer / duration);
+                effectRenderer.color = color;
+                
+                yield return null;
+            }
+            
+            Destroy(effect);
         }
         
         private void UpdateAnimations()
@@ -244,7 +368,7 @@ namespace MilitaryRPG.Units
             if (animator == null) return;
             
             // アニメーションパラメータの更新
-            animator.SetFloat("Speed", navAgent.velocity.magnitude);
+            animator.SetFloat("Speed", rb2d.velocity.magnitude);
             animator.SetBool("IsInCombat", isInCombat);
             animator.SetBool("IsAlive", isAlive);
         }
@@ -254,7 +378,7 @@ namespace MilitaryRPG.Units
         {
             if (!classData.canHeal || currentMana < 30) return;
             
-            Collider[] allies = Physics.OverlapSphere(transform.position, classData.attackRange);
+            Collider2D[] allies = Physics2D.OverlapCircleAll(transform.position, classData.attackRange);
             
             foreach (var ally in allies)
             {
@@ -265,6 +389,9 @@ namespace MilitaryRPG.Units
                     allyUnit.currentHealth = Mathf.Min(allyUnit.classData.baseHealth, 
                                                      allyUnit.currentHealth + healAmount);
                     
+                    // 回復エフェクト
+                    StartCoroutine(HealEffect(allyUnit));
+                    
                     Debug.Log($"{unitName} が {allyUnit.unitName} を {healAmount} 回復しました！");
                 }
             }
@@ -272,12 +399,23 @@ namespace MilitaryRPG.Units
             currentMana -= 30;
         }
         
+        private IEnumerator HealEffect(Unit healedUnit)
+        {
+            if (healedUnit.spriteRenderer != null)
+            {
+                Color originalColor = healedUnit.spriteRenderer.color;
+                healedUnit.spriteRenderer.color = Color.green;
+                yield return new WaitForSeconds(0.3f);
+                healedUnit.spriteRenderer.color = originalColor;
+            }
+        }
+        
         // 挑発スキル（戦士用）
         public void Taunt()
         {
             if (!classData.hasTaunt) return;
             
-            Collider[] enemies = Physics.OverlapSphere(transform.position, classData.attackRange * 1.5f);
+            Collider2D[] enemies = Physics2D.OverlapCircleAll(transform.position, classData.attackRange * 1.5f);
             
             foreach (var enemy in enemies)
             {
@@ -287,6 +425,16 @@ namespace MilitaryRPG.Units
                     enemyUnit.target = this.transform;
                     Debug.Log($"{unitName} が {enemyUnit.unitName} の注意を引きました！");
                 }
+            }
+        }
+        
+        // デバッグ用：攻撃範囲を表示
+        private void OnDrawGizmosSelected()
+        {
+            if (classData != null)
+            {
+                Gizmos.color = Color.red;
+                Gizmos.DrawWireCircle(transform.position, classData.attackRange);
             }
         }
     }
