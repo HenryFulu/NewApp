@@ -54,7 +54,10 @@ namespace MilitaryRPG.Core
             }
             
             // 全ユニットの色を更新
-            unitManager.SetUnitColors();
+            if (unitManager != null)
+            {
+                unitManager.SetUnitColors();
+            }
         }
         
         public void EndBattle()
@@ -76,11 +79,16 @@ namespace MilitaryRPG.Core
             DisplayBattleResults();
             
             // 小隊を再編成
-            squadManager.ReorganizeSquads();
+            if (squadManager != null)
+            {
+                squadManager.ReorganizeSquads();
+            }
         }
         
         private void CreateEnemyForces()
         {
+            if (unitManager == null) return;
+            
             List<Unit> allUnits = unitManager.GetAliveUnits();
             int enemyCount = allUnits.Count / 2;
             
@@ -88,6 +96,7 @@ namespace MilitaryRPG.Core
             for (int i = allUnits.Count - enemyCount; i < allUnits.Count; i++)
             {
                 Unit unit = allUnits[i];
+                if (unit == null) continue;
                 
                 // 敵軍の小隊IDを1000番台に変更
                 unit.squadID += 1000;
@@ -146,7 +155,7 @@ namespace MilitaryRPG.Core
                 }
                 
                 // スキル使用
-                if (Random.value < 0.3f) // 30%の確率でスキル使用
+                if (Random.value < 0.3f && squadManager != null) // 30%の確率でスキル使用
                 {
                     squadManager.OrderAllSquadsUseSkills();
                 }
@@ -161,7 +170,7 @@ namespace MilitaryRPG.Core
             // 各ユニットの戦闘AIを更新
             foreach (var unit in friendlyUnits)
             {
-                if (unit.isAlive && !unit.isInCombat)
+                if (unit != null && unit.isAlive && !unit.isInCombat)
                 {
                     Unit nearestEnemy = FindNearestEnemy(unit, enemyUnits);
                     if (nearestEnemy != null)
@@ -179,7 +188,7 @@ namespace MilitaryRPG.Core
             // 敵ユニットも同様に処理
             foreach (var unit in enemyUnits)
             {
-                if (unit.isAlive && !unit.isInCombat)
+                if (unit != null && unit.isAlive && !unit.isInCombat)
                 {
                     Unit nearestEnemy = FindNearestEnemy(unit, friendlyUnits);
                     if (nearestEnemy != null)
@@ -202,7 +211,7 @@ namespace MilitaryRPG.Core
             
             foreach (var enemy in enemies)
             {
-                if (!enemy.isAlive) continue;
+                if (enemy == null || !enemy.isAlive) continue;
                 
                 float distance = Vector2.Distance(unit.transform.position, enemy.transform.position);
                 if (distance < nearestDistance)
@@ -218,11 +227,14 @@ namespace MilitaryRPG.Core
         private List<Unit> GetFriendlyUnits()
         {
             List<Unit> friendlyUnits = new List<Unit>();
+            
+            if (unitManager == null) return friendlyUnits;
+            
             List<Unit> allUnits = unitManager.GetAliveUnits();
             
             foreach (var unit in allUnits)
             {
-                if (unit.squadID < 1000) // 友軍は1000未満のID
+                if (unit != null && unit.squadID < 1000) // 友軍は1000未満のID
                 {
                     friendlyUnits.Add(unit);
                 }
@@ -234,11 +246,14 @@ namespace MilitaryRPG.Core
         private List<Unit> GetEnemyUnits()
         {
             List<Unit> enemyUnits = new List<Unit>();
+            
+            if (unitManager == null) return enemyUnits;
+            
             List<Unit> allUnits = unitManager.GetAliveUnits();
             
             foreach (var unit in allUnits)
             {
-                if (unit.squadID >= 1000) // 敵軍は1000以上のID
+                if (unit != null && unit.squadID >= 1000) // 敵軍は1000以上のID
                 {
                     enemyUnits.Add(unit);
                 }
@@ -257,12 +272,12 @@ namespace MilitaryRPG.Core
             
             foreach (var unit in friendlyUnits)
             {
-                if (unit.isAlive) friendlyAlive++;
+                if (unit != null && unit.isAlive) friendlyAlive++;
             }
             
             foreach (var unit in enemyUnits)
             {
-                if (unit.isAlive) enemyAlive++;
+                if (unit != null && unit.isAlive) enemyAlive++;
             }
             
             // どちらかの軍勢が全滅したら戦闘終了
@@ -287,18 +302,24 @@ namespace MilitaryRPG.Core
             
             foreach (var unit in friendlyUnits)
             {
-                if (unit.isAlive)
-                    friendlyAlive++;
-                else
-                    friendlyDead++;
+                if (unit != null)
+                {
+                    if (unit.isAlive)
+                        friendlyAlive++;
+                    else
+                        friendlyDead++;
+                }
             }
             
             foreach (var unit in enemyUnits)
             {
-                if (unit.isAlive)
-                    enemyAlive++;
-                else
-                    enemyDead++;
+                if (unit != null)
+                {
+                    if (unit.isAlive)
+                        enemyAlive++;
+                    else
+                        enemyDead++;
+                }
             }
             
             Debug.Log("=== 2D戦闘結果 ===");
@@ -335,20 +356,29 @@ namespace MilitaryRPG.Core
             {
                 // 敵の中心位置を計算（2D版）
                 Vector2 enemyCenter = Vector2.zero;
+                int enemyCount = 0;
+                
                 foreach (var enemy in enemyUnits)
                 {
-                    if (enemy.isAlive)
-                        enemyCenter += (Vector2)enemy.transform.position;
-                }
-                enemyCenter /= enemyUnits.Count;
-                
-                // 友軍を敵の中心に向かわせる
-                foreach (var unit in friendlyUnits)
-                {
-                    if (unit.isAlive)
+                    if (enemy != null && enemy.isAlive)
                     {
-                        Vector2 chargePosition = enemyCenter + Random.insideUnitCircle * 10f;
-                        unit.SetDestination(chargePosition);
+                        enemyCenter += (Vector2)enemy.transform.position;
+                        enemyCount++;
+                    }
+                }
+                
+                if (enemyCount > 0)
+                {
+                    enemyCenter /= enemyCount;
+                    
+                    // 友軍を敵の中心に向かわせる
+                    foreach (var unit in friendlyUnits)
+                    {
+                        if (unit != null && unit.isAlive)
+                        {
+                            Vector2 chargePosition = enemyCenter + Random.insideUnitCircle * 10f;
+                            unit.SetDestination(chargePosition);
+                        }
                     }
                 }
             }
@@ -364,7 +394,7 @@ namespace MilitaryRPG.Core
             
             foreach (var unit in friendlyUnits)
             {
-                if (unit.isAlive)
+                if (unit != null && unit.isAlive)
                 {
                     // 後方に移動（2D版）
                     Vector2 retreatPosition = new Vector2(
@@ -386,7 +416,10 @@ namespace MilitaryRPG.Core
             if (mainCamera == null) return;
             
             // まず全ユニットを画面内に配置
-            unitManager.RepositionUnitsToScreen();
+            if (unitManager != null)
+            {
+                unitManager.RepositionUnitsToScreen();
+            }
             
             // 少し待ってから戦闘開始
             StartCoroutine(DelayedBattleStart());

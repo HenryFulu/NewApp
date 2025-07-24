@@ -42,6 +42,12 @@ namespace MilitaryRPG.Squads
         // メンバーを追加
         public bool AddMember(Unit unit)
         {
+            if (unit == null)
+            {
+                Debug.LogWarning("nullのユニットを小隊に追加しようとしました！");
+                return false;
+            }
+            
             if (members.Count >= maxMembers)
             {
                 Debug.LogWarning($"小隊 {squadName} は満員です！");
@@ -70,6 +76,8 @@ namespace MilitaryRPG.Squads
         // メンバーを削除
         public void RemoveMember(Unit unit)
         {
+            if (unit == null) return;
+            
             if (members.Contains(unit))
             {
                 members.Remove(unit);
@@ -92,7 +100,7 @@ namespace MilitaryRPG.Squads
             
             foreach (var member in members)
             {
-                if (member.isAlive)
+                if (member != null && member.isAlive)
                 {
                     SetLeader(member);
                     break;
@@ -108,6 +116,8 @@ namespace MilitaryRPG.Squads
         // リーダーを設定
         public void SetLeader(Unit unit)
         {
+            if (unit == null) return;
+            
             if (members.Contains(unit))
             {
                 // 前のリーダーのフラグを解除
@@ -139,7 +149,7 @@ namespace MilitaryRPG.Squads
             
             for (int i = 0; i < members.Count && i < positions.Count; i++)
             {
-                if (members[i].isAlive)
+                if (members[i] != null && members[i].isAlive)
                 {
                     members[i].SetDestination(positions[i]);
                 }
@@ -216,7 +226,7 @@ namespace MilitaryRPG.Squads
             int count = 0;
             foreach (var member in members)
             {
-                if (member.isAlive)
+                if (member != null && member.isAlive)
                     count++;
             }
             return count;
@@ -228,7 +238,7 @@ namespace MilitaryRPG.Squads
             int power = 0;
             foreach (var member in members)
             {
-                if (member.isAlive)
+                if (member != null && member.isAlive)
                     power += member.classData.baseAttack + member.classData.baseDefense;
             }
             return power;
@@ -243,7 +253,7 @@ namespace MilitaryRPG.Squads
             // 全メンバーを戦闘状態に
             foreach (var member in members)
             {
-                if (member.isAlive)
+                if (member != null && member.isAlive)
                 {
                     member.isInCombat = true;
                 }
@@ -260,7 +270,7 @@ namespace MilitaryRPG.Squads
             
             foreach (var member in members)
             {
-                if (member.isAlive)
+                if (member != null && member.isAlive)
                 {
                     member.isInCombat = false;
                 }
@@ -274,7 +284,7 @@ namespace MilitaryRPG.Squads
         {
             foreach (var member in members)
             {
-                if (!member.isAlive) continue;
+                if (member == null || !member.isAlive) continue;
                 
                 // 僧侶は回復
                 if (member.classData.canHeal)
@@ -310,7 +320,7 @@ namespace MilitaryRPG.Squads
             
             foreach (var member in members)
             {
-                if (member.isAlive)
+                if (member != null && member.isAlive)
                 {
                     center += (Vector2)member.transform.position;
                     aliveCount++;
@@ -331,7 +341,7 @@ namespace MilitaryRPG.Squads
             
             foreach (var member in members)
             {
-                if (member.isAlive)
+                if (member != null && member.isAlive)
                 {
                     Vector2 regroupPosition = center + Random.insideUnitCircle * 3f;
                     member.SetDestination(regroupPosition);
@@ -350,7 +360,7 @@ namespace MilitaryRPG.Squads
             
             foreach (var enemy in enemies)
             {
-                if (!enemy.isAlive) continue;
+                if (enemy == null || !enemy.isAlive) continue;
                 
                 float distance = Vector2.Distance(squadCenter, enemy.transform.position);
                 if (distance < nearestDistance)

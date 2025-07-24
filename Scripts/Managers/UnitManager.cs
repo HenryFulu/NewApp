@@ -225,7 +225,7 @@ namespace MilitaryRPG.Core
             List<Unit> aliveUnits = new List<Unit>();
             foreach (var unit in allUnits)
             {
-                if (unit.isAlive)
+                if (unit != null && unit.isAlive)
                     aliveUnits.Add(unit);
             }
             return aliveUnits;
@@ -237,7 +237,7 @@ namespace MilitaryRPG.Core
             List<Unit> aliveUnits = new List<Unit>();
             foreach (var unit in unitsByType[unitType])
             {
-                if (unit.isAlive)
+                if (unit != null && unit.isAlive)
                     aliveUnits.Add(unit);
             }
             return aliveUnits;
@@ -258,10 +258,13 @@ namespace MilitaryRPG.Core
                 
                 foreach (var unit in unitsByType[unitType])
                 {
-                    if (unit.isAlive)
-                        alive++;
-                    else
-                        dead++;
+                    if (unit != null)
+                    {
+                        if (unit.isAlive)
+                            alive++;
+                        else
+                            dead++;
+                    }
                 }
                 
                 totalAlive += alive;
@@ -300,8 +303,11 @@ namespace MilitaryRPG.Core
         {
             foreach (var unit in GetAliveUnits())
             {
-                Vector2 randomOffset = Random.insideUnitCircle * 5f;
-                unit.SetDestination(position + randomOffset);
+                if (unit != null)
+                {
+                    Vector2 randomOffset = Random.insideUnitCircle * 5f;
+                    unit.SetDestination(position + randomOffset);
+                }
             }
             
             Debug.Log($"全ユニットを {position} 付近に集合させました！");
@@ -312,11 +318,14 @@ namespace MilitaryRPG.Core
         {
             foreach (var unit in allUnits)
             {
-                SpriteRenderer spriteRenderer = unit.GetComponent<SpriteRenderer>();
-                if (spriteRenderer != null)
+                if (unit != null)
                 {
-                    Color color = GetClassColor(unit.classData.unitType);
-                    spriteRenderer.color = color;
+                    SpriteRenderer spriteRenderer = unit.GetComponent<SpriteRenderer>();
+                    if (spriteRenderer != null)
+                    {
+                        Color color = GetClassColor(unit.classData.unitType);
+                        spriteRenderer.color = color;
+                    }
                 }
             }
         }
@@ -354,11 +363,14 @@ namespace MilitaryRPG.Core
             
             foreach (var unit in GetAliveUnits())
             {
-                Vector2 newPos = new Vector2(
-                    Random.Range(newSpawnMin.x, newSpawnMax.x),
-                    Random.Range(newSpawnMin.y, newSpawnMax.y)
-                );
-                unit.transform.position = newPos;
+                if (unit != null)
+                {
+                    Vector2 newPos = new Vector2(
+                        Random.Range(newSpawnMin.x, newSpawnMax.x),
+                        Random.Range(newSpawnMin.y, newSpawnMax.y)
+                    );
+                    unit.transform.position = newPos;
+                }
             }
             
             Debug.Log("ユニットを画面内に再配置しました。");

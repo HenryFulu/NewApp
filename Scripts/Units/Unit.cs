@@ -61,8 +61,11 @@ namespace MilitaryRPG.Units
             animator = GetComponent<Animator>();
             
             // 2D物理設定
-            rb2d.gravityScale = 0f; // 2Dトップダウンなので重力無効
-            rb2d.freezeRotation = true; // 回転を制御
+            if (rb2d != null)
+            {
+                rb2d.gravityScale = 0f; // 2Dトップダウンなので重力無効
+                rb2d.freezeRotation = true; // 回転を制御
+            }
         }
         
         private void Start()
@@ -109,7 +112,7 @@ namespace MilitaryRPG.Units
                     {
                         currentState = UnitState.Idle;
                         hasDestination = false;
-                        rb2d.velocity = Vector2.zero;
+                        if (rb2d != null) rb2d.velocity = Vector2.zero;
                     }
                     break;
                     
@@ -128,7 +131,7 @@ namespace MilitaryRPG.Units
         
         private void UpdateMovement()
         {
-            if (currentState == UnitState.Moving && hasDestination)
+            if (currentState == UnitState.Moving && hasDestination && rb2d != null)
             {
                 Vector2 direction = (targetPosition - (Vector2)transform.position).normalized;
                 rb2d.velocity = direction * moveSpeed;
@@ -144,11 +147,18 @@ namespace MilitaryRPG.Units
             }
         }
         
+        // 目的地を設定するパブリックメソッド
         public void SetDestination(Vector2 destination)
         {
             targetPosition = destination;
             hasDestination = true;
             currentState = UnitState.Moving;
+        }
+        
+        // Vector3版も追加（互換性のため）
+        public void SetDestination(Vector3 destination)
+        {
+            SetDestination(new Vector2(destination.x, destination.y));
         }
         
         private void FindTarget()
@@ -177,7 +187,7 @@ namespace MilitaryRPG.Units
                 if (distance <= classData.attackRange)
                 {
                     currentState = UnitState.Attacking;
-                    rb2d.velocity = Vector2.zero;
+                    if (rb2d != null) rb2d.velocity = Vector2.zero;
                 }
                 else
                 {
@@ -266,7 +276,7 @@ namespace MilitaryRPG.Units
         {
             isAlive = false;
             currentState = UnitState.Dead;
-            rb2d.velocity = Vector2.zero;
+            if (rb2d != null) rb2d.velocity = Vector2.zero;
             
             // 死亡エフェクト
             if (animator != null)
@@ -368,7 +378,10 @@ namespace MilitaryRPG.Units
             if (animator == null) return;
             
             // アニメーションパラメータの更新
-            animator.SetFloat("Speed", rb2d.velocity.magnitude);
+            if (rb2d != null)
+            {
+                animator.SetFloat("Speed", rb2d.velocity.magnitude);
+            }
             animator.SetBool("IsInCombat", isInCombat);
             animator.SetBool("IsAlive", isAlive);
         }
