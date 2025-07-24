@@ -45,91 +45,236 @@ namespace MilitaryRPG.Core
         
         public void CreateInitialUnits(int totalCount)
         {
+            if (totalCount <= 0)
+            {
+                Debug.LogError("ユニット生成数が0以下です");
+                return;
+            }
+            
             Debug.Log($"2Dユニット生成開始: {totalCount}体");
             
-            // 職業ごとの生成数を計算
-            int warriorCount = Mathf.RoundToInt(totalCount * warriorRatio);
-            int archerCount = Mathf.RoundToInt(totalCount * archerRatio);
-            int mageCount = Mathf.RoundToInt(totalCount * mageRatio);
-            int priestCount = totalCount - warriorCount - archerCount - mageCount; // 残りは僧侶
-            
-            Debug.Log($"職業分布 - 戦士: {warriorCount}, 弓兵: {archerCount}, 魔法使い: {mageCount}, 僧侶: {priestCount}");
-            
-            // 各職業のユニットを生成
-            CreateUnitsOfType(UnitType.Warrior, warriorCount);
-            CreateUnitsOfType(UnitType.Archer, archerCount);
-            CreateUnitsOfType(UnitType.Mage, mageCount);
-            CreateUnitsOfType(UnitType.Priest, priestCount);
-            
-            Debug.Log($"2Dユニット生成完了！総数: {allUnits.Count}体");
+            try
+            {
+                // 職業ごとの生成数を計算
+                int warriorCount = Mathf.RoundToInt(totalCount * warriorRatio);
+                int archerCount = Mathf.RoundToInt(totalCount * archerRatio);
+                int mageCount = Mathf.RoundToInt(totalCount * mageRatio);
+                int priestCount = totalCount - warriorCount - archerCount - mageCount; // 残りは僧侶
+                
+                // 負の値チェック
+                if (priestCount < 0)
+                {
+                    Debug.LogWarning("職業比率の計算結果が無効です。調整します。");
+                    priestCount = 0;
+                }
+                
+                Debug.Log($"職業分布 - 戦士: {warriorCount}, 弓兵: {archerCount}, 魔法使い: {mageCount}, 僧侶: {priestCount}");
+                
+                // 各職業のユニットを生成
+                CreateUnitsOfType(UnitType.Warrior, warriorCount);
+                CreateUnitsOfType(UnitType.Archer, archerCount);
+                CreateUnitsOfType(UnitType.Mage, mageCount);
+                CreateUnitsOfType(UnitType.Priest, priestCount);
+                
+                int actualTotal = allUnits.Count;
+                Debug.Log($"2Dユニット生成完了！総数: {actualTotal}体 (目標: {totalCount}体)");
+                
+                if (actualTotal == 0)
+                {
+                    Debug.LogError("ユニットを1体も作成できませんでした！ゲームが正常に動作しない可能性があります。");
+                }
+                else if (actualTotal < totalCount * 0.5f)
+                {
+                    Debug.LogWarning($"目標の半分以下のユニットしか作成できませんでした ({actualTotal}/{totalCount})");
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"CreateInitialUnitsエラー: {e.Message}\nStackTrace: {e.StackTrace}");
+            }
         }
         
         private void CreateUnitsOfType(UnitType unitType, int count)
         {
+            Debug.Log($"{unitType}の{count}体のユニット作成を開始...");
+            
+            int successCount = 0;
+            int failCount = 0;
+            
             for (int i = 0; i < count; i++)
             {
-                Vector2 spawnPosition = GetRandomSpawnPosition();
-                Unit newUnit = CreateUnit(unitType, spawnPosition);
-                
-                if (newUnit != null)
+                try
                 {
-                    allUnits.Add(newUnit);
-                    unitsByType[unitType].Add(newUnit);
+                    Vector2 spawnPosition = GetRandomSpawnPosition();
+                    Unit newUnit = CreateUnit(unitType, spawnPosition);
+
+                    if (newUnit != null)
+                    {
+                        allUnits.Add(newUnit);
+                        unitsByType[unitType].Add(newUnit);
+                        successCount++;
+                        
+                        // 5体ごとに進捗報告
+                        if (successCount % 5 == 0)
+                        {
+                            Debug.Log($"{unitType}: {successCount}/{count} 体作成完了");
+                        }
+                    }
+                    else
+                    {
+                        failCount++;
+                        Debug.LogWarning($"{unitType}のユニット作成に失敗しました (試行 {i + 1}/{count})");
+                    }
                 }
+                catch (System.Exception e)
+                {
+                    failCount++;
+                    Debug.LogError($"{unitType}のユニット作成でエラー (試行 {i + 1}/{count}): {e.Message}");
+                }
+            }
+            
+            Debug.Log($"{unitType}の作成完了: 成功 {successCount}, 失敗 {failCount}");
+            
+            if (successCount == 0)
+            {
+                Debug.LogError($"{unitType}のユニットを1体も作成できませんでした！");
             }
         }
         
         private Unit CreateUnit(UnitType unitType, Vector2 position)
         {
-            GameObject unitObj;
+            GameObject unitObj = null;
             
-            if (unitPrefab != null)
+            try
             {
-                unitObj = Instantiate(unitPrefab, position, Quaternion.identity, unitParent);
+                if (unitPrefab != null)
+                {
+                    unitObj = Instantiate(unitPrefab, position, Quaternion.identity, unitParent);
+                }
+                else
+                {
+                    // プレハブがない場合は基本的な2Dオブジェクトを生成
+                    unitObj = CreateBasic2DUnitObject(position, unitType);
+                }
+                
+                if (unitObj == null)
+                {
+                    Debug.LogError($"ユニットオブジェクトの生成に失敗しました: {unitType}");
+                    return null;
+                }
+                
+                // 2D物理コンポーネントを先に追加
+                SetupUnit2DComponents(unitObj, unitType);
+                
+                // Unitコンポーネントを取得または追加
+                Unit unit = unitObj.GetComponent<Unit>();
+                if (unit == null)
+                {
+                    unit = unitObj.AddComponent<Unit>();
+                }
+                
+                if (unit == null)
+                {
+                    Debug.LogError($"Unitコンポーネントの追加に失敗しました: {unitType}");
+                    if (unitObj != null) DestroyImmediate(unitObj);
+                    return null;
+                }
+                
+                // ユニットIDを設定
+                unit.unitID = nextUnitID++;
+                
+                // クラスデータを作成・設定
+                try
+                {
+                    unit.classData = new UnitClassData(unitType);
+                    if (unit.classData == null)
+                    {
+                        Debug.LogError($"UnitClassDataの作成に失敗しました: {unitType}");
+                        if (unitObj != null) DestroyImmediate(unitObj);
+                        return null;
+                    }
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"UnitClassData作成時エラー: {e.Message}");
+                    if (unitObj != null) DestroyImmediate(unitObj);
+                    return null;
+                }
+                
+                // ユニット初期化
+                try
+                {
+                    unit.InitializeUnit();
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"ユニット初期化エラー: {e.Message}");
+                    if (unitObj != null) DestroyImmediate(unitObj);
+                    return null;
+                }
+                
+                Debug.Log($"ユニット作成成功: {unit.unitName} (ID: {unit.unitID})");
+                return unit;
             }
-            else
+            catch (System.Exception e)
             {
-                // プレハブがない場合は基本的な2Dオブジェクトを生成
-                unitObj = CreateBasic2DUnitObject(position, unitType);
+                Debug.LogError($"CreateUnit全体エラー: {e.Message}\nStackTrace: {e.StackTrace}");
+                if (unitObj != null) DestroyImmediate(unitObj);
+                return null;
             }
-            
-            Unit unit = unitObj.GetComponent<Unit>();
-            if (unit == null)
-            {
-                unit = unitObj.AddComponent<Unit>();
-            }
-            
-            // ユニットの初期化
-            unit.unitID = nextUnitID++;
-            unit.classData = new UnitClassData(unitType);
-            
-            // 2D物理コンポーネントを追加
-            SetupUnit2DComponents(unitObj, unitType);
-            
-            // ユニット初期化
-            unit.InitializeUnit();
-            
-            return unit;
         }
         
         private GameObject CreateBasic2DUnitObject(Vector2 position, UnitType unitType)
         {
-            GameObject unitObj = new GameObject($"Unit_{nextUnitID:000}_{unitType}");
-            unitObj.transform.position = new Vector3(position.x, position.y, 0);
-            
-            // SpriteRendererを追加
-            SpriteRenderer spriteRenderer = unitObj.AddComponent<SpriteRenderer>();
-            spriteRenderer.sprite = GetSpriteForUnitType(unitType);
-            spriteRenderer.sortingOrder = 1;
-            
-            // スプライトがない場合はデフォルトの色付き正方形を作成
-            if (spriteRenderer.sprite == null)
+            try
             {
-                spriteRenderer.sprite = CreateDefaultSprite();
-                spriteRenderer.color = GetClassColor(unitType);
+                GameObject unitObj = new GameObject($"Unit_{nextUnitID:000}_{unitType}");
+                if (unitObj == null)
+                {
+                    Debug.LogError("GameObjectの作成に失敗しました");
+                    return null;
+                }
+                
+                unitObj.transform.position = new Vector3(position.x, position.y, 0);
+                
+                // SpriteRendererを追加
+                SpriteRenderer spriteRenderer = unitObj.AddComponent<SpriteRenderer>();
+                if (spriteRenderer == null)
+                {
+                    Debug.LogError("SpriteRendererの追加に失敗しました");
+                    DestroyImmediate(unitObj);
+                    return null;
+                }
+                
+                spriteRenderer.sprite = GetSpriteForUnitType(unitType);
+                spriteRenderer.sortingOrder = 1;
+                
+                // スプライトがない場合はデフォルトの色付き正方形を作成
+                if (spriteRenderer.sprite == null)
+                {
+                    try
+                    {
+                        spriteRenderer.sprite = CreateDefaultSprite();
+                        if (spriteRenderer.sprite != null)
+                        {
+                            spriteRenderer.color = GetClassColor(unitType);
+                        }
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogWarning($"デフォルトスプライト作成エラー: {e.Message}");
+                        // スプライトがなくても続行
+                        spriteRenderer.color = GetClassColor(unitType);
+                    }
+                }
+                
+                return unitObj;
             }
-            
-            return unitObj;
+            catch (System.Exception e)
+            {
+                Debug.LogError($"CreateBasic2DUnitObjectエラー: {e.Message}");
+                return null;
+            }
         }
         
         private Sprite GetSpriteForUnitType(UnitType unitType)
@@ -151,41 +296,90 @@ namespace MilitaryRPG.Core
         
         private Sprite CreateDefaultSprite()
         {
-            // 16x16の白いテクスチャを作成
-            Texture2D texture = new Texture2D(16, 16);
-            Color[] pixels = new Color[16 * 16];
-            
-            for (int i = 0; i < pixels.Length; i++)
+            try
             {
-                pixels[i] = Color.white;
+                // 16x16の白いテクスチャを作成
+                Texture2D texture = new Texture2D(16, 16);
+                if (texture == null)
+                {
+                    Debug.LogError("Texture2Dの作成に失敗しました");
+                    return null;
+                }
+                
+                Color[] pixels = new Color[16 * 16];
+                
+                for (int i = 0; i < pixels.Length; i++)
+                {
+                    pixels[i] = Color.white;
+                }
+                
+                texture.SetPixels(pixels);
+                texture.Apply();
+                
+                Sprite sprite = Sprite.Create(texture, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f));
+                if (sprite == null)
+                {
+                    Debug.LogError("Spriteの作成に失敗しました");
+                    return null;
+                }
+                
+                return sprite;
             }
-            
-            texture.SetPixels(pixels);
-            texture.Apply();
-            
-            return Sprite.Create(texture, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f));
+            catch (System.Exception e)
+            {
+                Debug.LogError($"CreateDefaultSpriteエラー: {e.Message}");
+                return null;
+            }
         }
         
         private void SetupUnit2DComponents(GameObject unitObj, UnitType unitType)
         {
-            // Rigidbody2Dを追加
-            if (unitObj.GetComponent<Rigidbody2D>() == null)
+            if (unitObj == null)
             {
-                Rigidbody2D rb2d = unitObj.AddComponent<Rigidbody2D>();
-                rb2d.gravityScale = 0f;
-                rb2d.freezeRotation = true;
+                Debug.LogError("SetupUnit2DComponents: unitObjがnullです");
+                return;
             }
             
-            // CircleCollider2Dを追加
-            if (unitObj.GetComponent<Collider2D>() == null)
+            try
             {
-                CircleCollider2D collider = unitObj.AddComponent<CircleCollider2D>();
-                collider.radius = 0.3f;
-                collider.isTrigger = false; // 物理的な衝突を有効にする
+                // Rigidbody2Dを追加
+                if (unitObj.GetComponent<Rigidbody2D>() == null)
+                {
+                    Rigidbody2D rb2d = unitObj.AddComponent<Rigidbody2D>();
+                    if (rb2d != null)
+                    {
+                        rb2d.gravityScale = 0f;
+                        rb2d.freezeRotation = true;
+                    }
+                    else
+                    {
+                        Debug.LogWarning("Rigidbody2Dの追加に失敗しました");
+                    }
+                }
+                
+                // CircleCollider2Dを追加
+                if (unitObj.GetComponent<Collider2D>() == null)
+                {
+                    CircleCollider2D collider = unitObj.AddComponent<CircleCollider2D>();
+                    if (collider != null)
+                    {
+                        collider.radius = 0.3f;
+                        collider.isTrigger = false; // 物理的な衝突を有効にする
+                    }
+                    else
+                    {
+                        Debug.LogWarning("CircleCollider2Dの追加に失敗しました");
+                    }
+                }
+                
+                // スケールを調整
+                Vector3 scale = GetScaleForUnitType(unitType);
+                unitObj.transform.localScale = scale;
             }
-            
-            // スケールを調整
-            unitObj.transform.localScale = GetScaleForUnitType(unitType);
+            catch (System.Exception e)
+            {
+                Debug.LogError($"SetupUnit2DComponentsエラー: {e.Message}");
+            }
         }
         
         private Vector3 GetScaleForUnitType(UnitType unitType)
