@@ -8,7 +8,7 @@ namespace MilitaryRPG.Core
 {
     public class CombatManager : MonoBehaviour
     {
-        [Header("戦闘設定")]
+        [Header("2D戦闘設定")]
         public float battleRadius = 30f;
         public float battleUpdateInterval = 2f;
         public bool autoBattleMode = true;
@@ -41,7 +41,7 @@ namespace MilitaryRPG.Core
                 return;
             }
             
-            Debug.Log("🔥 戦闘開始！全軍、攻撃準備！");
+            Debug.Log("🔥 2D戦闘開始！全軍、攻撃準備！");
             
             battleInProgress = true;
             
@@ -70,7 +70,7 @@ namespace MilitaryRPG.Core
                 battleCoroutine = null;
             }
             
-            Debug.Log("⚔️ 戦闘終了！");
+            Debug.Log("⚔️ 2D戦闘終了！");
             
             // 戦闘結果を表示
             DisplayBattleResults();
@@ -93,25 +93,20 @@ namespace MilitaryRPG.Core
                 unit.squadID += 1000;
                 
                 // 敵軍の色を設定（少し暗い色）
-                Renderer renderer = unit.GetComponent<Renderer>();
-                if (renderer != null)
+                SpriteRenderer spriteRenderer = unit.GetComponent<SpriteRenderer>();
+                if (spriteRenderer != null)
                 {
                     Color enemyColor = GetEnemyClassColor(unit.classData.unitType);
-                    renderer.material.color = enemyColor;
+                    spriteRenderer.color = enemyColor;
                 }
                 
-                // 敵軍を反対側に移動
-                Vector3 enemyPosition = new Vector3(
+                // 敵軍を反対側に移動（2D版）
+                Vector2 enemyPosition = new Vector2(
                     Random.Range(20f, 60f),
-                    0,
                     Random.Range(-30f, 30f)
                 );
                 
-                UnityEngine.AI.NavMeshAgent agent = unit.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                if (agent != null)
-                {
-                    agent.SetDestination(enemyPosition);
-                }
+                unit.SetDestination(enemyPosition);
             }
             
             Debug.Log($"敵軍{enemyCount}体を生成しました！");
@@ -171,7 +166,7 @@ namespace MilitaryRPG.Core
                     Unit nearestEnemy = FindNearestEnemy(unit, enemyUnits);
                     if (nearestEnemy != null)
                     {
-                        float distance = Vector3.Distance(unit.transform.position, nearestEnemy.transform.position);
+                        float distance = Vector2.Distance(unit.transform.position, nearestEnemy.transform.position);
                         if (distance <= battleRadius)
                         {
                             unit.target = nearestEnemy.transform;
@@ -189,7 +184,7 @@ namespace MilitaryRPG.Core
                     Unit nearestEnemy = FindNearestEnemy(unit, friendlyUnits);
                     if (nearestEnemy != null)
                     {
-                        float distance = Vector3.Distance(unit.transform.position, nearestEnemy.transform.position);
+                        float distance = Vector2.Distance(unit.transform.position, nearestEnemy.transform.position);
                         if (distance <= battleRadius)
                         {
                             unit.target = nearestEnemy.transform;
@@ -209,7 +204,7 @@ namespace MilitaryRPG.Core
             {
                 if (!enemy.isAlive) continue;
                 
-                float distance = Vector3.Distance(unit.transform.position, enemy.transform.position);
+                float distance = Vector2.Distance(unit.transform.position, enemy.transform.position);
                 if (distance < nearestDistance)
                 {
                     nearestDistance = distance;
@@ -306,7 +301,7 @@ namespace MilitaryRPG.Core
                     enemyDead++;
             }
             
-            Debug.Log("=== 戦闘結果 ===");
+            Debug.Log("=== 2D戦闘結果 ===");
             Debug.Log($"味方軍: 生存 {friendlyAlive}, 戦死 {friendlyDead}");
             Debug.Log($"敵軍: 生存 {enemyAlive}, 戦死 {enemyDead}");
             
@@ -326,7 +321,7 @@ namespace MilitaryRPG.Core
             Debug.Log("===============");
         }
         
-        // 戦術指令システム
+        // 戦術指令システム（2D版）
         public void OrderCharge()
         {
             if (!battleInProgress) return;
@@ -338,12 +333,12 @@ namespace MilitaryRPG.Core
             
             if (enemyUnits.Count > 0)
             {
-                // 敵の中心位置を計算
-                Vector3 enemyCenter = Vector3.zero;
+                // 敵の中心位置を計算（2D版）
+                Vector2 enemyCenter = Vector2.zero;
                 foreach (var enemy in enemyUnits)
                 {
                     if (enemy.isAlive)
-                        enemyCenter += enemy.transform.position;
+                        enemyCenter += (Vector2)enemy.transform.position;
                 }
                 enemyCenter /= enemyUnits.Count;
                 
@@ -352,13 +347,8 @@ namespace MilitaryRPG.Core
                 {
                     if (unit.isAlive)
                     {
-                        UnityEngine.AI.NavMeshAgent agent = unit.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                        if (agent != null)
-                        {
-                            Vector3 chargePosition = enemyCenter + Random.insideUnitSphere * 10f;
-                            chargePosition.y = 0;
-                            agent.SetDestination(chargePosition);
-                        }
+                        Vector2 chargePosition = enemyCenter + Random.insideUnitCircle * 10f;
+                        unit.SetDestination(chargePosition);
                     }
                 }
             }
@@ -376,22 +366,36 @@ namespace MilitaryRPG.Core
             {
                 if (unit.isAlive)
                 {
-                    UnityEngine.AI.NavMeshAgent agent = unit.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                    if (agent != null)
-                    {
-                        // 後方に移動
-                        Vector3 retreatPosition = new Vector3(
-                            Random.Range(-30f, -10f),
-                            0,
-                            Random.Range(-20f, 20f)
-                        );
-                        agent.SetDestination(retreatPosition);
-                    }
+                    // 後方に移動（2D版）
+                    Vector2 retreatPosition = new Vector2(
+                        Random.Range(-30f, -10f),
+                        Random.Range(-20f, 20f)
+                    );
+                    unit.SetDestination(retreatPosition);
                     
                     unit.isInCombat = false;
                     unit.target = null;
                 }
             }
+        }
+        
+        // 画面内で戦闘を開始
+        public void StartBattleOnScreen()
+        {
+            Camera mainCamera = Camera.main;
+            if (mainCamera == null) return;
+            
+            // まず全ユニットを画面内に配置
+            unitManager.RepositionUnitsToScreen();
+            
+            // 少し待ってから戦闘開始
+            StartCoroutine(DelayedBattleStart());
+        }
+        
+        private IEnumerator DelayedBattleStart()
+        {
+            yield return new WaitForSeconds(1f);
+            StartBattle();
         }
         
         private void Update()
@@ -400,7 +404,7 @@ namespace MilitaryRPG.Core
             if (Input.GetKeyDown(KeyCode.B))
             {
                 if (!battleInProgress)
-                    StartBattle();
+                    StartBattleOnScreen();
                 else
                     EndBattle();
             }
